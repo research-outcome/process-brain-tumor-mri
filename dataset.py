@@ -9,7 +9,7 @@ from torch.utils.data import Dataset
 
 class RSNADataset(Dataset):
 
-    def __init__(self, root_dir, csv_dir, transform=None, randomizer=None, scanType: str = "FLAIR"):
+    def __init__(self, root_dir, csv_dir, transform=None, augment=None, randomizer=None, scanType: str = "FLAIR"):
         self.root_dir = root_dir
         self.scanType = scanType
         self.buffers = (0, 0, 0, 0)
@@ -38,11 +38,7 @@ class RSNADataset(Dataset):
         patient = patientList[index]
         flairDir = pathlib.Path(self.root_dir + "\\" + patient.name + "\\" + self.scanType)
         tensor = self.concatenate(list(flairDir.iterdir()))
-
-        if self.transform:
-            tensor = self.transform(tensor)
         
-        print(tensor)
         return (tensor, self.labels[index])
 
 
@@ -64,13 +60,21 @@ class RSNADataset(Dataset):
             for data in randomizedList:
                 dicom = pydicom.dcmread(str(data))
                 npdicom = dicom.pixel_array
+
+                if self.transform:
+                    npdicom = self.transform(npdicom)
+
                 dicomtensor = torch.from_numpy((npdicom // 256).astype(np.uint8))
 
                 tensorsList.append(dicomtensor)
         except:
             raise TypeError("Invalid data type.")
+        
+        tensor = torch.stack(tensorsList)
+        if self.augment:
+            self.augment(tensor)
 
-        return torch.stack(tensorsList)
+        return tensor
 
     def crop(array, buffers: tuple):
         imshape = array.shape
