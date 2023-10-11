@@ -2,14 +2,8 @@ from pathlib import Path
 import randomizer
 import natsort
 import numpy as np
-from pipeline import Crop
+from pipeline import Crop, translate
 import pydicom
-
-def translate(tx, ty, image):
-    _, N, M = image.shape
-    image_translated = np.zeros_like(image)
-    image_translated[:,max(tx,0):M+min(tx,0), max(ty,0):N+min(ty,0)] = image[:,-min(tx,0):M-max(tx,0), -min(ty,0):N-max(ty,0)]
-    return image_translated
 
 
 def augmentations(nparray):
@@ -33,7 +27,7 @@ def augmentations(nparray):
 
 
 
-def transformationPipeline(dataList):
+def transformationPipeline(dataList, analytics):
     # first do the sampling 
     sampled = randomizer.uniform_temporal_subsample(dataList, 14)
 
@@ -42,7 +36,7 @@ def transformationPipeline(dataList):
     for item in sampled:
         dicom = pydicom.dcmread(str(item))
         npdicom = dicom.pixel_array
-        cropped = Crop(npdicom)
+        cropped = Crop(npdicom, analytics)
         newList.append(cropped)
 
     merged = np.array(newList)
@@ -61,12 +55,11 @@ def save(parent, name, list, suffixes):
 
 
 
-
-newData = Path('F:\\brain-tumor-target-2\\train')
+newData = Path('F:\\brain-tumor-target-7\\train')
 
 continued = True
 
-processed = Path("F:\\brain-tumor-target-2\\preprocessed\\")
+processed = Path("F:\\brain-tumor-target-7\\preprocessed\\")
 processed.mkdir(parents=True,exist_ok=True)
 
 lastSuccessfulPatient = "00000"
@@ -74,34 +67,47 @@ lastSuccessfulPatient = "00000"
 # fill it
 suffixes = ["", "rot90", "rot270", "hf", "vf", "ltr", "rtr", "utr", "dtr"]
 
-i = 0
 
-# main loop
-for patient in newData.iterdir():
+def main():
 
-    if i==2:
-        break
+    # i = 0
 
-    # checkpoint code
-    if patient.name != lastSuccessfulPatient:
-        if continued:
-            continue
-    else:
-        continued = False
+    histogramFile = open(".\\analytics\\resizeHistogram.txt", "w")
+    # main loop
+    for patient in newData.iterdir():
+
+        # if i==2:
+        #     break
+
+        # checkpoint code
+        if patient.name != lastSuccessfulPatient:
+            if continued:
+                continue
+        else:
+            continued = False
+        
+        # create the patient directory in preprocessed
+        processedPatient = Path(str(processed) + "\\" + patient.name + "\\")
+        processedPatient.mkdir(parents=True, exist_ok=True)
+
+        histogramFile.write(f"{patient.name}:\n")
+
+        for type in patient.iterdir():
+            histogramFile.write(f"{type.name}:\n")
+            print(f"{patient.name} - {type.name}: Beginning")
+            prType = Path(str(processedPatient) + "\\" + type.name + "\\")
+            prType.mkdir(parents=True, exist_ok=True)
+            typeArraysList = transformationPipeline(natsort.natsorted(type.iterdir()), histogramFile)
+            save(prType, patient.name, typeArraysList, suffixes)
+            print(f"{patient.name} - {type.name}: Done")
+
+        # i+=1
     
-    # create the patient directory in preprocessed
-    processedPatient = Path(str(processed) + "\\" + patient.name + "\\")
-    processedPatient.mkdir(parents=True, exist_ok=True)
+    histogramFile.close()
 
-    for type in patient.iterdir():
-        print(f"{patient.name} - {type.name}: Beginning")
-        prType = Path(str(processedPatient) + "\\" + type.name + "\\")
-        prType.mkdir(parents=True, exist_ok=True)
-        typeArraysList = transformationPipeline(natsort.natsorted(type.iterdir()))
-        save(prType, patient.name, typeArraysList, suffixes)
-        print(f"{patient.name} - {type.name}: Done")
 
-    i+=1
+main()
+
 
     
 

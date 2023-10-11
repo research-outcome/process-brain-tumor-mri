@@ -3,81 +3,152 @@ import pathlib
 import pydicom
 import numpy as np
 import pandas as pd
+import cv2 as cv
+from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
+from pipeline import Crop
+import randomizer
+import natsort
+import copy
 
 from torch.utils.data import Dataset
 
 
 class RSNADataset(Dataset):
 
-    def __init__(self, root_dir, csv_dir, transform=None, augment=None, randomizer=None, scanType: str = "FLAIR"):
+    def __init__(self, root_dir, csv_dir=None, dataset="train", val=0, scanType: str = "FLAIR"):
         self.root_dir = root_dir
         self.scanType = scanType
-        self.buffers = (0, 0, 0, 0)
-        self.transform = transform
-        self.randomizer = randomizer
+        self.dataset = dataset
+        self.val = val
 
-        csv_data = pd.read_csv(csv_dir)
-        self.labels = csv_data[csv_data.columns[1]]
+        if csv_dir != None:
+            csv_data = pd.read_csv(csv_dir)
+            labels = csv_data[csv_data.columns[1]]
+            self.trainingData, self.valData = self.train_val_generate(labels)
+        
+        else:
+            self.testData = self.test_generate(root_dir)  
+
+
+    def test_generate(self, path):
+        
+        testPatients = list()
+        testDir = pathlib.Path(path)
+        for patient in testDir.iterdir():
+            testPatients.append(patient)
+        
+        return shuffle(testPatients, random_state=42)
+
+
+
+    def train_val_generate(self, labels):
+        
+        patients = list()
+
+        rootDir = pathlib.Path(self.root_dir)
+
+        for patient in rootDir.iterdir():
+            patients.append(patient)
+
+        liste = list()
+        if self.val:
+            trainX, valX, _, _ = train_test_split(patients, labels, test_size=self.val, random_state=42)
+            liste.append(trainX)
+            liste.append(valX)
+            trainingSet = liste[0]  
+            valSet = liste[1]
+        else:
+            trainingSet = patients
+
+        trainDataPaths, valDataPaths = list(), list()
+
+        for patient in trainingSet:
+            for type in patient.iterdir():
+                if type.name == self.scanType:
+                    label = labels[patients.index(patient)]
+                    for data in type.iterdir():
+                        trainDataPaths.append((data, label))
+                else:
+                    continue
+
+        for patient in valSet:
+            for type in patient.iterdir():
+                if type.name == self.scanType:
+                    label = labels[patients.index(patient)]
+                    for data in type.iterdir():
+                        valDataPaths.append((data, label))
+                else:
+                    continue
+        
+        trainingData = shuffle(trainDataPaths, random_state=42)
+        valData = shuffle(valDataPaths, random_state=42)
+
+        return trainingData, valData
+            
+                
 
 
     # there definitely exists a better way.
     def __len__(self):
-        rootDir = pathlib.Path(self.root_dir)
-        return len(list(rootDir.iterdir()))
-    
-    def setBuffers(self, buffers):
-        self.buffers = buffers
-
+        if self.dataset == "train":
+            return len(self.trainingData)
+        elif self.dataset == "val":
+            return len(self.valData)
+        else:
+            return len(self.testData)
 
 
     def __getitem__(self, index: int):
-        rootDir = pathlib.Path(self.root_dir)
 
+        if self.dataset == "train":
+            fetchedItem = self.trainingData[index]
+            label = fetchedItem[1]
+            fetchedData = (np.load(fetchedItem[0])).astype(np.int32)
+            return (fetchedData, label)
+
+        elif self.dataset == "val":
+            fetchedItem = self.valData[index]
+            label = fetchedItem[1]
+            fetchedData = (np.load(fetchedItem[0])).astype(np.int32)
+            return (fetchedData, label)
+        
+        else:
+            patient = self.testData[index]
+            fetchedItem = self.transform(patient)
+            return fetchedItem.astype(np.int32)
     
-        patientList = list(rootDir.iterdir())
-        patient = patientList[index]
-        flairDir = pathlib.Path(self.root_dir + "\\" + patient.name + "\\" + self.scanType)
-        tensor = self.concatenate(list(flairDir.iterdir()))
-        
-        return (tensor, self.labels[index])
+    
+    def transform(self, patient):
+
+        subsampled = list()
+
+        for type in patient.iterdir():
+            if type.name == self.scanType:
+                directory = natsort.natsorted(type.iterdir())
+
+        for file in directory:
+            dicom = pydicom.dcmread(str(file))
+            npdicom = dicom.pixel_array
+            zeros = cv.countNonZero(npdicom)
+            if zeros > 100:
+                subsampled.append(npdicom)
+
+
+        subsampled = randomizer.uniform_temporal_subsample(subsampled, 14)
+
+        # begin cropping
+        croppedList = list()
+        for item in subsampled:
+            item = Crop(item)
+            croppedList.append(item)
+
+        return np.array(croppedList)
+
+
 
 
         
-    def concatenate(self, dataList: list):
 
-        randomizer = self.randomizer
-
-        tensorsList = list()
-        randomizedList = randomizer(dataList) if randomizer != None else dataList
-
-        if type(randomizedList) != list:
-            raise TypeError("Invalid randomizer or data, use lists.")
-
-        if len(randomizedList) == 0:
-            raise ValueError("The folder is empty")
-
-        try:
-            for data in randomizedList:
-                dicom = pydicom.dcmread(str(data))
-                npdicom = dicom.pixel_array
-
-                if self.transform:
-                    npdicom = self.transform(npdicom)
-
-                dicomtensor = torch.from_numpy((npdicom // 256).astype(np.uint8))
-
-                tensorsList.append(dicomtensor)
-        except:
-            raise TypeError("Invalid data type.")
-        
-        tensor = torch.stack(tensorsList)
-        if self.augment:
-            self.augment(tensor)
-
-        return tensor
-
-    def crop(array, buffers: tuple):
-        imshape = array.shape
-        return array[buffers[0]:(imshape[0] - buffers[1]), buffers[2]: (imshape[1] - buffers[3])]
 
             
