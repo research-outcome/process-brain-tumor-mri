@@ -6,21 +6,23 @@ import pandas as pd
 import cv2 as cv
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
-from pipeline import Crop
+from pipeline import Crop, concatenate
 import randomizer
 import natsort
 import copy
+import regex as re
 
 from torch.utils.data import Dataset
 
 
 class RSNADataset(Dataset):
 
-    def __init__(self, root_dir, csv_dir=None, dataset="train", val=0, scanType: str = "FLAIR"):
+    def __init__(self, root_dir, csv_dir=None, dataset="train", val=0, scanType: str = "FLAIR", modelSize="s"):
         self.root_dir = root_dir
         self.scanType = scanType
         self.dataset = dataset
         self.val = val
+        self.modelSize = modelSize
 
         if csv_dir != None:
             csv_data = pd.read_csv(csv_dir)
@@ -68,7 +70,9 @@ class RSNADataset(Dataset):
                 if type.name == self.scanType:
                     label = labels[patients.index(patient)]
                     for data in type.iterdir():
-                        trainDataPaths.append((data, label))
+                        isSize = len(re.findall(f'(?<=-)[{self.modelSize}](?=\.npy)', data.name)) > 0
+                        if isSize:
+                            trainDataPaths.append((data, label))
                 else:
                     continue
 
@@ -77,7 +81,9 @@ class RSNADataset(Dataset):
                 if type.name == self.scanType:
                     label = labels[patients.index(patient)]
                     for data in type.iterdir():
-                        valDataPaths.append((data, label))
+                        isSize = len(re.findall(f'(?<=-)[{self.modelSize}](?=\.npy)', data.name)) > 0
+                        if isSize:
+                            valDataPaths.append((data, label))
                 else:
                     continue
         
@@ -116,6 +122,10 @@ class RSNADataset(Dataset):
         else:
             patient = self.testData[index]
             fetchedItem = self.transform(patient)
+            if self.modelSize == 's':
+                fetchedItem = cv.resize(fetchedItem, (224, 224), interpolation=cv.INTER_LINEAR)
+            elif self.modelSize == 'l':
+                fetchedItem = cv.resize(fetchedItem, (299, 299), interpolation=cv.INTER_LINEAR)
             return fetchedItem.astype(np.int32)
     
     
@@ -134,16 +144,18 @@ class RSNADataset(Dataset):
             if zeros > 100:
                 subsampled.append(npdicom)
 
+        if len(subsampled != 0):
+            subsampled = randomizer.uniform_temporal_subsample(subsampled, 11)
 
-        subsampled = randomizer.uniform_temporal_subsample(subsampled, 14)
+            # begin cropping
+            croppedList = list()
+            for item in subsampled:
+                item = Crop(item)
+                croppedList.append(item)
 
-        # begin cropping
-        croppedList = list()
-        for item in subsampled:
-            item = Crop(item)
-            croppedList.append(item)
-
-        return np.array(croppedList)
+            return concatenate(croppedList)
+        else:
+            return [np.zeros((299, 299)) for i in range(9)]
 
 
 

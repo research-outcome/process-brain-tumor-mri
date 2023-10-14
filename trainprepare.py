@@ -2,8 +2,10 @@ from pathlib import Path
 import randomizer
 import natsort
 import numpy as np
-from pipeline import Crop, translate
+from pipeline import Crop, translate, concatenate
 import pydicom
+import os
+import cv2 as cv
 
 
 def augmentations(nparray):
@@ -17,10 +19,10 @@ def augmentations(nparray):
     verticalFlip = np.flip(nparray, -1)
 
     # the last set of augmentations are translation
-    ltr = translate(-5, 0, nparray)
-    rtr = translate(5, 0, nparray)
-    utr = translate(0, -5, nparray)
-    dtr = translate(0, 5, nparray)
+    ltr = translate(-10, 0, nparray)
+    rtr = translate(10, 0, nparray)
+    utr = translate(0, -10, nparray)
+    dtr = translate(0, 10, nparray)
 
     return [nparray, rot90, rot270, horizontalFlip, verticalFlip, ltr, rtr, utr, dtr]
 
@@ -29,17 +31,20 @@ def augmentations(nparray):
 
 def transformationPipeline(dataList, analytics):
     # first do the sampling 
-    sampled = randomizer.uniform_temporal_subsample(dataList, 14)
+    if len(dataList) == 0:
+        return [np.zeros((299, 299)) for i in range(9)]
+    
+    sampled = randomizer.uniform_temporal_subsample(dataList, 11)
 
     newList = list()
     # crop each picture, then merge
     for item in sampled:
-        dicom = pydicom.dcmread(str(item))
+        dicom = pydicom.dcmread(os.readlink(item))
         npdicom = dicom.pixel_array
         cropped = Crop(npdicom, analytics)
         newList.append(cropped)
 
-    merged = np.array(newList)
+    merged = concatenate(newList)
 
     # now apply the augmentations
     augmentedList = augmentations(merged)
@@ -49,17 +54,24 @@ def transformationPipeline(dataList, analytics):
 
 def save(parent, name, list, suffixes):
     for i in range(len(list)):
-        path = Path(f"{parent}\\{name}{suffixes[i]}")
-        np.save(path, list[i])
+        smaller = cv.resize(list[i], (224, 224), interpolation=cv.INTER_LINEAR)
+        a1 = np.array([smaller, smaller, smaller])
+        larger = cv.resize(list[i], (299, 299), interpolation=cv.INTER_LINEAR)
+        a2 = np.array([larger, larger , larger])
+
+        spath = Path(f"{parent}/{name}{suffixes[i]}-s")
+        lpath = Path(f"{parent}/{name}{suffixes[i]}-l")
+        np.save(spath, a1)
+        np.save(lpath, a2)
 
 
 
 
-newData = Path('F:\\brain-tumor-target-7\\train')
+newData = Path('./brain-tumor-target/train')
 
 continued = True
 
-processed = Path("F:\\brain-tumor-target-7\\preprocessed\\")
+processed = Path("./brain-tumor-target/preprocessed")
 processed.mkdir(parents=True,exist_ok=True)
 
 lastSuccessfulPatient = "00000"
@@ -68,16 +80,19 @@ lastSuccessfulPatient = "00000"
 suffixes = ["", "rot90", "rot270", "hf", "vf", "ltr", "rtr", "utr", "dtr"]
 
 
-def main():
+def main(continued):
 
-    # i = 0
+    i = 0
 
-    histogramFile = open(".\\analytics\\resizeHistogram.txt", "w")
+    histogramFile = open("./analytics/resizeHistogram-new.txt", "w")
     # main loop
-    for patient in newData.iterdir():
+    for patient in natsort.natsorted(newData.iterdir()):
 
-        # if i==2:
+        # if i==1:
         #     break
+
+        if not patient.is_dir:
+            continue
 
         # checkpoint code
         if patient.name != lastSuccessfulPatient:
@@ -87,26 +102,26 @@ def main():
             continued = False
         
         # create the patient directory in preprocessed
-        processedPatient = Path(str(processed) + "\\" + patient.name + "\\")
+        processedPatient = processed / patient.name
         processedPatient.mkdir(parents=True, exist_ok=True)
 
         histogramFile.write(f"{patient.name}:\n")
 
-        for type in patient.iterdir():
+        for type in natsort.natsorted(patient.iterdir()):
             histogramFile.write(f"{type.name}:\n")
             print(f"{patient.name} - {type.name}: Beginning")
-            prType = Path(str(processedPatient) + "\\" + type.name + "\\")
+            prType = processedPatient / type.name
             prType.mkdir(parents=True, exist_ok=True)
             typeArraysList = transformationPipeline(natsort.natsorted(type.iterdir()), histogramFile)
             save(prType, patient.name, typeArraysList, suffixes)
             print(f"{patient.name} - {type.name}: Done")
 
-        # i+=1
+        i+=1
     
     histogramFile.close()
 
 
-main()
+main(continued)
 
 
     

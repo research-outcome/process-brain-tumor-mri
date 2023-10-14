@@ -10,7 +10,8 @@ def uniform_temporal_subsample(x, num_samples):
     t = len(x)
     indices = torch.linspace(0, t - 1, num_samples)
     indices = torch.clamp(indices, 0, t - 1).long()
-    return [x[i] for i in indices]
+    arr = [x[i] for i in indices]
+    return arr[1:len(arr) - 1]
 
 def uniformTemporal(dataList: Path, number: int):
 
@@ -47,7 +48,6 @@ def mixedSampling(dataList, number):
         finalList.append(dataList[i])
 
     return natsorted(finalList)
-
 
 
 

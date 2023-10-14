@@ -11,6 +11,21 @@ def findGreatest(contours):
             v = i
     return contours[v]
 
+
+'''Takes an input of list of arrays of size nˆ2, concatenates them such that:
+        0, 1, 2, ..., n - 1
+        n, n + 1, ..., 2n - 1
+        |
+        nˆ2 - n, ..., nˆ2 - 1    
+ '''
+def concatenate(arrays):
+    a1 = np.concatenate(arrays[0:3], 1)
+    a2 = np.concatenate(arrays[3:6], 1)
+    a3 = np.concatenate(arrays[6:], 1)
+
+    arrayfinal = np.concatenate((a1, a2, a3), 0)
+    return arrayfinal
+
 # keep in mind that some of these operations are there to make image prettier.
 # also optimize
 def Crop(image, analytics=None):
@@ -29,15 +44,16 @@ def Crop(image, analytics=None):
     extBot = tuple(c[c[:, :, 1].argmax()][0])
     croppedarray = image[extTop[1]: extBot[1], extLeft[0]: extRight[0]]
     previousShape = croppedarray.shape
-    # analytics.write(f"{previousShape} -> (224, 224)\n")
-    resized = cv.resize(croppedarray, (224, 224), interpolation=cv.INTER_LINEAR)
+    if not analytics:
+        analytics.write(f"{previousShape} -> (299, 299)\n")
+    resized = cv.resize(croppedarray, (240, 240), interpolation=cv.INTER_LINEAR)
 
     return resized
 
 def translate(tx, ty, image):
-    _, N, M = image.shape
+    N, M = image.shape
     image_translated = np.zeros_like(image)
-    image_translated[:,max(tx,0):M+min(tx,0), max(ty,0):N+min(ty,0)] = image[:,-min(tx,0):M-max(tx,0), -min(ty,0):N-max(ty,0)]
+    image_translated[max(tx,0):M+min(tx,0), max(ty,0):N+min(ty,0)] = image[-min(tx,0):M-max(tx,0), -min(ty,0):N-max(ty,0)]
     return image_translated
 
 

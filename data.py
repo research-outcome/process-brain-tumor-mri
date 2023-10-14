@@ -3,9 +3,45 @@ from torch import nn
 from dataset import RSNADataset
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
-from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0, resnet50
+from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0, resnet50, inception_v3, densenet121
+from torchvision.models._api import WeightsEnum
+from torch.hub import load_state_dict_from_url
 
-def train(dataloader, model, loss_fn, optimizer):
+def get_state_dict(self, *args, **kwargs):
+    kwargs.pop("check_hash")
+    return load_state_dict_from_url(self.url, *args, **kwargs)
+WeightsEnum.get_state_dict = get_state_dict
+
+
+
+batchSize = 16
+epochs = 30
+
+
+
+def train_model(model, weights, size):
+    trainDataset = RSNADataset("./brain-tumor-target/preprocessed", "./rsna-miccai-brain-tumor-radiogenomic-classification/train_labels.csv", "train", 0.118, modelSize=size)
+    valDataset = RSNADataset("./brain-tumor-target/preprocessed", "./rsna-miccai-brain-tumor-radiogenomic-classification/train_labels.csv", "val", 0.118, modelSize=size)
+
+
+    dloader = DataLoader(trainDataset, batch_size=batchSize, shuffle=True)
+    val = DataLoader(valDataset, batch_size=batchSize, shuffle=True)
+
+    model.load_state_dict(torch.load(weights), strict=False)
+
+    nig = nn.Sequential(*list(model.children())[:-1])
+
+    for layer in nig:
+        layer.requires_grad_ = False
+
+    mergedModel = nn.Sequential(nig, nn.Flatten(), nn.Linear(1280, 2, bias=True))
+
+
+    return mergedModel, dloader, val
+
+
+
+def train(dataloader, model, loss_fn, optimizer, device, output):
     size = len(dataloader.dataset)
 
     model.train() # set the model to training mode
@@ -25,7 +61,7 @@ def train(dataloader, model, loss_fn, optimizer):
             output.write(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]\n")
 
 
-def test(dataloader, model, loss_fn):
+def test(dataloader, model, loss_fn, device, output):
     size = len(dataloader.dataset)
     num_batches = len(dataloader)
     model.eval()    # set the model in evaluation mode
@@ -35,11 +71,11 @@ def test(dataloader, model, loss_fn):
     with torch.no_grad():
         for X, y in dataloader:
             X, y = X.to(device, dtype=torch.float), y.to(device, dtype=torch.long)
-            print(y)
+            #print(y)
             pred = model(X)
-            print(pred)
+            #print(pred)
             l = loss_fn((pred), y)
-            print(l)
+            #print(l)
             test_loss += l.item()
             correct += (pred.argmax(1) == y).type(torch.float).sum().item()
 
@@ -49,41 +85,46 @@ def test(dataloader, model, loss_fn):
     output.write(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
 
 
-
-trainDataset = RSNADataset("F:\\brain-tumor-target-7\\preprocessed", "F:\\brain-tumor-target-7\\train_labels.csv", "train", 0.118)
-valDataset = RSNADataset("F:\\brain-tumor-target-7\\preprocessed", "F:\\brain-tumor-target-7\\train_labels.csv", "val", 0.118)
-
-dloader = DataLoader(trainDataset, batch_size=10, shuffle=True)
-val = DataLoader(valDataset, batch_size=10, shuffle=True)
-
-model = efficientnet_b0(weights=EfficientNet_B0_Weights.IMAGENET1K_V1)
+model1, d1, v1 = train_model(resnet50(), "/Users/macbook/Downloads/RadImageNet_pytorch/ResNet50.pt", "s") # 2048
+model2, d2, v2 = train_model(inception_v3(), "/Users/macbook/Downloads/RadImageNet_pytorch/InceptionV3.pt", "l")
+model3, d3, v3 = train_model(densenet121(), "/Users/macbook/Downloads/RadImageNet_pytorch/DenseNet121.pt", "s")
 
 
-nig = nn.Sequential(*list(model.children())[:-1])
 
-for layer in nig:
-    layer.requires_grad_ = False
+list = [model3, d1, v1, model2, d2, v2, model3, d3, v3]
 
-testmodel = nn.Sequential(nn.Conv2d(14, 3, kernel_size=(3, 3), padding=(1, 1), bias=False), nig, nn.Flatten(), nn.Linear(1280, 2, bias=True))
+names = ["RadImageNet-ResNet50", "RadImageNet-InceptionV3", "RadImageNet-DenseNet121"]
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+
+print(device)
 
 
-loss_fn = nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(model.parameters(), 4e-3)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma= 0.01)
 
-testmodel = testmodel.to(device)
+for i in range(3):
 
-output = open("EfficientNet_B1_IMAGENET1K_V1", "w")
-epochs = 5
-for t in range(epochs):
-    print(f"Epoch {t+1}\n-------------------------------")
-    output.write(f"Epoch {t+1}\n-------------------------------\n")
-    train(dloader, testmodel, loss_fn, optimizer)
-    test(val, testmodel, loss_fn)
-    scheduler.step()
-print("Done!")
+    model = list[3*i]
+    dloader = list[3*i + 1]
+    val = list[3*i + 2]
+
+    model = model.to(device)
+
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(model.parameters(), 4e-3)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma= 0.1)
+
+    output = open(f"./trainingResults/{names[i]}", "w")
+    epochs = epochs
+    for t in range(epochs):
+        print(f"Epoch {t+1}\n-------------------------------")
+        output.write(f"Epoch {t+1}\n-------------------------------\n")
+        train(dloader, model, loss_fn, optimizer, device, output)
+        test(val, model, loss_fn, device, output)
+        scheduler.step()
+
+    torch.save(model.state_dict(), f"./modelWeights/{names[i]}.pt")
+    print("Done!")
+    output.close()
 
 
 
