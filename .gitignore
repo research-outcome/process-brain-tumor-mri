@@ -2,7 +2,7 @@ pics/
 data/
 ./rsna-miccai-brain-tumor-radiogenomic-classification/
 rsna-miccai-brain-tumor-radiogenomic-classification/test/00001/FLAIR/Image-1.dcm
-./brain-tumor-target/preprocessed/
+./brain-tumor-target/*/*/*/*
 brain-tumor-target/preprocessed/00000/FLAIR/00000-l.npy
 brain-tumor-target/preprocessed/00000/FLAIR/00000-s.npy
 data.py
