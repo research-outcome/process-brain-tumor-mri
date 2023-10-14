@@ -24,8 +24,8 @@ def train_model(model, weights, size, folder):
     valDataset = RSNADataset("./brain-tumor-target/preprocessed", "./rsna-miccai-brain-tumor-radiogenomic-classification/train_labels.csv", "val", 0.118, scanType=folder, modelSize=size)
 
 
-    dloader = DataLoader(trainDataset, batch_size=batchSize, shuffle=False)
-    val = DataLoader(valDataset, batch_size=batchSize, shuffle=False)
+    dloader = DataLoader(trainDataset, batch_size=batchSize, shuffle=True)
+    val = DataLoader(valDataset, batch_size=batchSize, shuffle=True)
 
     model.load_state_dict(torch.load(weights), strict=False)
 
@@ -34,11 +34,11 @@ def train_model(model, weights, size, folder):
     layers = list(nig.children())
 
 
-    for i in range(len(layers) - 2):
+    for i in range(len(layers) - 3):
         layers[i].requires_grad_ = False
 
 
-    mergedModel = nn.Sequential(nig, nn.Flatten(), nn.Linear(2048, 2, bias=True), nn.Sigmoid())
+    mergedModel = nn.Sequential(nig, nn.Flatten(), nn.Linear(2048, 2, bias=True))
 
 
     return mergedModel, dloader, val
@@ -53,21 +53,18 @@ def train(dataloader, model, loss_fn, optimizer, device, output):
         X, y = X.to(device, dtype=torch.float), y.to(device, dtype=torch.long) # send the instances to the device
 
         pred = model(X)
-        loss = loss_fn((pred), y) # predict and calculate the loss
+        loss = loss_fn(pred, y) # predict and calculate the loss
 
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        optimizer.zero_grad()
 
-    #     if batch % 100 == 0:
-    #         loss, current = loss.item(), (batch + 1) * len(X)
-    #         print(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
-    #         output.write(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]\n")
+        if batch % 100 == 0:
+            loss, current = loss.item(), (batch + 1) * len(X)
+            print(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
+            output.write(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]\n")
     
-        loss, current = loss.item(), (batch + 1) * len(X)
-        print(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
-        output.write(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]\n")
-        return
+    
 
 def test(dataloader, model, loss_fn, device, output):
     size = len(dataloader.dataset)
@@ -82,15 +79,15 @@ def test(dataloader, model, loss_fn, device, output):
             #print(y)
             pred = model(X)
             #print(pred)
-            l = loss_fn((pred), y)
+            l = loss_fn(pred, y)
             #print(l)
             test_loss += l.item()
             correct += (pred.argmax(1) == y).type(torch.float).sum().item()
 
     test_loss /= num_batches
     correct /= size
-    print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
-    output.write(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+    print(f"Test Error: \n Accuracy: {(100*correct):>0.8f}%, Avg loss: {test_loss:>8f} \n")
+    output.write(f"Test Error: \n Accuracy: {(100*correct):>0.8f}%, Avg loss: {test_loss:>8f} \n")
 
 
 model1, d1, v1 = train_model(resnet50(), "/Users/macbook/Downloads/RadImageNet_pytorch/ResNet50.pt", "s", "FLAIR") # 2048
@@ -121,8 +118,8 @@ for i in range(4):
     model = model.to(device)
 
     loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), 1000)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=60, gamma= 0.1)
+    optimizer = torch.optim.SGD(model.parameters(), 0.001, momentum=0.87, nesterov=True)
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=60, gamma= 0.1)
 
     output = open(f"./trainingResults/{names[0]}folder{i}", "w")
     epochs = epochs
@@ -131,7 +128,7 @@ for i in range(4):
         output.write(f"Epoch {t+1}\n-------------------------------\n")
         train(dloader, model, loss_fn, optimizer, device, output)
         test(val, model, loss_fn, device, output)
-        scheduler.step()
+        # scheduler.step()
 
     torch.save(model.state_dict(), f"./modelWeights/{names[0]}folder{i}.pt")
     print("Done!")
