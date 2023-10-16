@@ -6,8 +6,7 @@ import pandas as pd
 import cv2 as cv
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
-from pipeline import Crop, concatenate
-import randomizer
+from methods import *
 import natsort
 import copy
 import regex as re
@@ -145,7 +144,7 @@ class RSNADataset(Dataset):
                 subsampled.append(npdicom)
 
         if len(subsampled != 0):
-            subsampled = randomizer.uniform_temporal_subsample(subsampled, 11)
+            subsampled = uniform_temporal_subsample(subsampled, 11)
 
             # begin cropping
             croppedList = list()

@@ -5,6 +5,11 @@ import cv2 as cv
 import numpy as np
 import natsort
 
+
+
+''''
+This method calculates the maximum size of any dicom file within the entire dataset. 
+'''
 def sizeCalculate():
 
     minimumShape = (10000, 10000)
@@ -26,6 +31,10 @@ def sizeCalculate():
     print(minimumShape, maximumShape)
 
 
+
+''''
+This method calculates the number of slices in each given parametric folder, for each patient. 
+'''
 def sliceHistogram(filePath, folderPath):
 
     sliceAnalytics = open(filePath, "a")
@@ -45,6 +54,10 @@ def sliceHistogram(filePath, folderPath):
     sliceAnalytics.close()
 
 
+'''
+For a given file containing slice numbers for each parametric folder for each patient,
+this method computes the minimum number of slices across all patients for each parametric folder.
+'''
 def findMins(fileList):
     for path in fileList:
         file = open(path, "r")
@@ -64,6 +77,9 @@ def findMins(fileList):
         print(min1, min2, min3, min4)
         file.close()
 
+'''
+Given an image, this method computes the maximum contour area for all contours detectable by opencv findContours() method.
+'''
 def contourArea(nparray):
 
     blurred = cv.GaussianBlur(nparray, (5, 5), 0)
@@ -82,6 +98,12 @@ def contourArea(nparray):
     return maxArea
 
 
+'''
+For any parametric folder of each patient, this method will find:
+    - the slice with greatest area
+    - middle slice
+and then print them to an output file.
+'''
 def middleGreatestComparison(parent):
 
     analyticFile = open(".\\analytics\\middle-greatest-comparison.txt", "w")
@@ -138,6 +160,6 @@ def middleGreatestComparison(parent):
 # for i in range(5, 8):
 #     sliceHistogram(f".\\analytics\\slices-{i}.txt", f"F:\\brain-tumor-target-{i}\\train")
 
-middleGreatestComparison("F:\\brain-tumor-target-5\\train")
+# middleGreatestComparison("F:\\brain-tumor-target-5\\train")
 
 # findMins([".\\analytics\\slices-5.txt", ".\\analytics\\slices-6.txt", ".\\analytics\\slices-7.txt"])

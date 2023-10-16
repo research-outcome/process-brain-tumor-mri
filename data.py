@@ -7,6 +7,11 @@ from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0, resnet5
 from torchvision.models._api import WeightsEnum
 from torch.hub import load_state_dict_from_url
 
+
+'''
+This method is necessary in downloading pretrained weights of ResNet50. May prove to be useless
+in different platforms.
+'''
 def get_state_dict(self, *args, **kwargs):
     kwargs.pop("check_hash")
     return load_state_dict_from_url(self.url, *args, **kwargs)
@@ -16,6 +21,8 @@ WeightsEnum.get_state_dict = get_state_dict
 
 batchSize = 16
 epochs = 60
+
+
 
 
 
@@ -43,7 +50,10 @@ def train_model(model, weights, size, folder):
 
     return mergedModel, dloader, val
 
-
+'''
+train and test methods are copied directly from pytorch's getting started page.
+There is a huge probability that these need to be modified.
+'''
 
 def train(dataloader, model, loss_fn, optimizer, device, output):
     size = len(dataloader.dataset)
@@ -97,8 +107,12 @@ model4, d4, v4 = train_model(resnet50(), "/Users/macbook/Downloads/RadImageNet_p
 # model2, d2, v2 = train_model(inception_v3(), "/Users/macbook/Downloads/RadImageNet_pytorch/InceptionV3.pt", "l")
 # model3, d3, v3 = train_model(densenet121(), "/Users/macbook/Downloads/RadImageNet_pytorch/DenseNet121.pt", "s") # 50176
 
+# the numbers next to the lines denote input features of the architecture for each different model.
 
 
+
+
+# the list to automate training of different models.
 list = [model1, d1, v1, model2, d2, v2, model3, d3, v3, model4, d4, v4]
 
 names = ["RadImageNet-ResNet50", "RadImageNet-InceptionV3", "RadImageNet-DenseNet121"]

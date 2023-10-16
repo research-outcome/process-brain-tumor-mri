@@ -1,11 +1,10 @@
 from pathlib import Path
-import randomizer
 import natsort
 import numpy as np
-from pipeline import Crop, translate, concatenate
 import pydicom
 import os
 import cv2 as cv
+from methods import *
 
 
 def augmentations(nparray):
@@ -34,7 +33,7 @@ def transformationPipeline(dataList, analytics):
     if len(dataList) == 0:
         return [np.zeros((299, 299)) for i in range(9)]
     
-    sampled = randomizer.uniform_temporal_subsample(dataList, 11)
+    sampled = uniform_temporal_subsample(dataList, 11)
 
     newList = list()
     # crop each picture, then merge

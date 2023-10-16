@@ -1,17 +1,27 @@
+''''
+The file for cleaning redundant dicom slices from original dataset.
+
+    originalData: location of the unaltered dataset
+    example : originalData = Path('./rsna-miccai-brain-tumor-radiogenomic-classification/train')
+
+    newData: location for the new dataset
+    newData = Path('./brain-tumor-target/train') 
+
+Note that the program will simply create symbolic links to avoid unnecessary space usage.
+'''
+
+
 import cv2 as cv
 import pydicom
 from pathlib import Path
-import randomizer
+import sys
 import natsort
 import numpy as np
 
 
-pathPrefix = './rsna-miccai-brain-tumor-radiogenomic-classification/train'
+originalData = sys.argv[0]
 
-# cleanedData = Path('F:\\brain-tumor-target\\train')
-originalData = Path('./rsna-miccai-brain-tumor-radiogenomic-classification/train')
-
-newData = Path('./brain-tumor-target/train') 
+newData = sys.argv[1]
 
 for patient in originalData.iterdir():
     if not patient.is_dir:
