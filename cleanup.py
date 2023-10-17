@@ -19,9 +19,9 @@ import natsort
 import numpy as np
 
 
-originalData = sys.argv[0]
+originalData = Path(sys.argv[0])
 
-newData = sys.argv[1]
+newData = Path(sys.argv[1])
 
 for patient in originalData.iterdir():
     if not patient.is_dir:
