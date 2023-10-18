@@ -15,10 +15,11 @@ import cv2 as cv
 import pydicom
 from pathlib import Path
 import sys
-import natsort
 import numpy as np
 
 
+
+# The addresses of the directories must be given as program arguments.
 originalData = Path(sys.argv[0])
 
 newData = Path(sys.argv[1])
@@ -33,8 +34,10 @@ for patient in originalData.iterdir():
             newFileFolder = newData / patient.name / type.name
             newFileFolder.mkdir(parents=True, exist_ok=True)
             target = newFileFolder / file.name
+            # read the dicom file into a numpy array
             dicom = pydicom.dcmread(str(source))
             npdicom = dicom.pixel_array
+            # only create a symbolic link if the array has more than given non-zero elements
             if cv.countNonZero(npdicom) >= 100:
                 target.symlink_to(source)
     print(f"{patient.name} - Done")

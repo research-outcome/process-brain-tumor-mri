@@ -63,6 +63,17 @@ If analytics is given, the function will write to an output file the resizing do
 the image.
 '''
 def Crop(image, analytics=None):
+    '''
+    An explanation of the procedure:
+        - The given image is blurred by applying Gaussian blur.
+        - Then thresholding is applied such that any non-zero (non-black) pixel will be turned 
+        to white.
+        - Closing is applied on the thresholded image. Closing is the process of applying first dilation then erosion on an image
+        and it smoothens the contours. These three steps are required to prepare the image for contour detection.
+        - Then all contours in the image is found and passed to findGreatest() to return the one with greatest area. 
+        - Then extreme points of this contour is calculated and the image is cropped accordingly.
+        - Finally, the image is resized to (240, 240) and returned. 
+    '''
     blurred = cv.GaussianBlur(image, (5, 5), 0)
     thresh = cv.threshold(blurred, 1, 255, cv.THRESH_BINARY)[1]
 
