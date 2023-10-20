@@ -5,6 +5,7 @@ import pydicom
 import os
 import cv2 as cv
 from methods import *
+import pandas as pd
 
 
 def augmentations(nparray):
@@ -31,7 +32,7 @@ def augmentations(nparray):
 def transformationPipeline(dataList, analytics):
     # first do the sampling 
     if len(dataList) == 0:
-        return [np.zeros((299, 299)) for i in range(9)]
+        return [np.zeros((240, 240)) for i in range(9)]
     
     sampled = uniform_temporal_subsample(dataList, 11)
 
@@ -42,7 +43,6 @@ def transformationPipeline(dataList, analytics):
         npdicom = dicom.pixel_array
         cropped = Crop(npdicom, analytics)
         newList.append(cropped)
-
     merged = concatenate(newList)
 
     # now apply the augmentations
@@ -53,37 +53,34 @@ def transformationPipeline(dataList, analytics):
 
 def save(parent, name, list, suffixes):
     for i in range(len(list)):
-        smaller = cv.resize(list[i], (224, 224), interpolation=cv.INTER_LINEAR)
-        a1 = np.array([smaller, smaller, smaller])
-        larger = cv.resize(list[i], (299, 299), interpolation=cv.INTER_LINEAR)
-        a2 = np.array([larger, larger , larger])
-
-        spath = Path(f"{parent}/{name}{suffixes[i]}-s")
-        lpath = Path(f"{parent}/{name}{suffixes[i]}-l")
+        a1 = np.array([list[i], list[i], list[i]])
+        spath = Path(f"{parent}/{name}{suffixes[i]}")
         np.save(spath, a1)
-        np.save(lpath, a2)
+        
 
 
 
-
-newData = Path('./brain-tumor-target/train')
-
-continued = True
-
-processed = Path("./brain-tumor-target/preprocessed")
+root = Path("F:\\brain-tumor-target\\")
+newData = root / "train"
+processed = root / "reorganized"
 processed.mkdir(parents=True,exist_ok=True)
-
-lastSuccessfulPatient = "00000"
 
 # fill it
 suffixes = ["", "rot90", "rot270", "hf", "vf", "ltr", "rtr", "utr", "dtr"]
 
 
-def main(continued):
+csv_dir = Path.cwd() / "train_labels.csv"
+csv = pd.read_csv(csv_dir)
+
+patients = csv["BraTS21ID"]
+labels = csv["MGMT_value"]
+
+
+def main():
 
     i = 0
-
-    histogramFile = open("./analytics/resizeHistogram-new.txt", "w")
+    histogramDir = Path.cwd() / "analytics" / "resizeHistogram-new.txt"
+    histogramFile = open(histogramDir, "w")
     # main loop
     for patient in natsort.natsorted(newData.iterdir()):
 
@@ -92,27 +89,32 @@ def main(continued):
 
         if not patient.is_dir:
             continue
-
-        # checkpoint code
-        if patient.name != lastSuccessfulPatient:
-            if continued:
-                continue
-        else:
-            continued = False
         
         # create the patient directory in preprocessed
-        processedPatient = processed / patient.name
-        processedPatient.mkdir(parents=True, exist_ok=True)
-
         histogramFile.write(f"{patient.name}:\n")
 
-        for type in natsort.natsorted(patient.iterdir()):
+        types = ["FLAIR", "T1w", "T1wCE", "T2w"]
+        for type in types:
+            # create the corresponding type directory
+            typeTargetFolder = processed / type
+            typeTargetFolder.mkdir(parents=True, exist_ok=True)
+
             histogramFile.write(f"{type.name}:\n")
             print(f"{patient.name} - {type.name}: Beginning")
-            prType = processedPatient / type.name
-            prType.mkdir(parents=True, exist_ok=True)
-            typeArraysList = transformationPipeline(natsort.natsorted(type.iterdir()), histogramFile)
-            save(prType, patient.name, typeArraysList, suffixes)
+            # retrieve the label and create directory
+            index = list(patients).index(int(patient.name))
+            label = labels[index]
+            labelDir = typeTargetFolder / str(label)
+            labelDir.mkdir(parents=True, exist_ok = True)
+            # pass the directory to transformations
+            """
+            if the patient has no slices for the corresponding scan, decide to fill with zeros or omit entirely
+            """
+            if (processed / patient.name / type).exists:
+                typeArraysList = transformationPipeline(natsort.natsorted(type.iterdir()), histogramFile)
+            else:
+                typeArraysList = [np.zeros(240, 240) for i in range(9)]
+            save(labelDir, patient.name, typeArraysList, suffixes)
             print(f"{patient.name} - {type.name}: Done")
 
         i+=1
@@ -120,7 +122,7 @@ def main(continued):
     histogramFile.close()
 
 
-main(continued)
+main()
 
 
     
