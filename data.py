@@ -5,9 +5,13 @@ from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
 from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0, resnet50, inception_v3, densenet121
 from torchvision.models._api import WeightsEnum
+from pathlib import Path
 from torch.hub import load_state_dict_from_url
 import sys
 import ensemble
+import time
+from tempfile import TemporaryDirectory
+import os
 
 
 
@@ -41,21 +45,32 @@ epochs = 60
 models = [efficientnet_b0(), resnet50(), inception_v3(), densenet121()]
 
 
-architecture = models[int(sys.argv[0])]
-weights = sys.argv[1]
-trainingFolder = sys.argv[2]
-labelsDirectory = sys.argv[3]
+# architecture = models[int(sys.argv[0])]
+# weights = sys.argv[1]
+# trainingFolder = sys.argv[2]
+# labelsDirectory = sys.argv[3]
+architecture = efficientnet_b0()
+weights = EfficientNet_B0_Weights
+trainingFolder = Path("F:\\brain-tumor-target\\reorganized")
+labelsDirectory = Path.cwd() / "train_labels.csv"
 
-modelSize = "s" if int(sys.argv[0]) % 2 == 0 else "l"
 
-
-trainDataset = RSNADataset(trainingFolder, labelsDirectory, "train", 0.118, modelSize)
-valDataset = RSNADataset(trainingFolder, labelsDirectory, "val", 0.118, modelSize)
+trainDataset = RSNADataset(trainingFolder, labelsDirectory, "train", 0.118)
+valDataset = RSNADataset(trainingFolder, labelsDirectory, "val", 0.118)
 
 trainDL = DataLoader(trainDataset, batch_size=batchSize, shuffle=True)
 valDL = DataLoader(valDataset, batch_size=batchSize, shuffle=True)
 
-model = ensemble.EnsembleModel(architecture, weights)
+dataloaders = [trainDL, valDL]
+
+# model = ensemble.EnsembleModel(architecture, weights)
+modelf = efficientnet_b0(EfficientNet_B0_Weights)
+for layer in modelf.children():
+    layer.requires_grad_ = False
+
+model = nn.Sequential(list(modelf.children())[:-1], nn.LazyLinear(2))
+
+dataset_sizes = [trainDataset.__len__(), valDataset.__len__()]
 
 
 '''
@@ -63,7 +78,77 @@ train and test methods are copied directly from pytorch's getting started page.
 There is a huge probability that these need to be modified.
 '''
 
-def train(dataloader, model, loss_fn, optimizer, device, output):
+def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
+    since = time.time()
+
+    # Create a temporary directory to save training checkpoints
+    with TemporaryDirectory() as tempdir:
+        best_model_params_path = os.path.join(tempdir, 'best_model_params.pt')
+
+        torch.save(model.state_dict(), best_model_params_path)
+        best_acc = 0.0
+
+        for epoch in range(num_epochs):
+            print(f'Epoch {epoch}/{num_epochs - 1}')
+            print('-' * 10)
+
+            # Each epoch has a training and validation phase
+            for phase in ['train', 'val']:
+                if phase == 'train':
+                    model.train()  # Set model to training mode
+                else:
+                    model.eval()   # Set model to evaluate mode
+
+                running_loss = 0.0
+                running_corrects = 0
+
+                # Iterate over data.
+                for inputs, labels in dataloaders[phase]:
+                    inputs = inputs.to(device)
+                    labels = labels.to(device)
+
+                    # zero the parameter gradients
+                    optimizer.zero_grad()
+
+                    # forward
+                    # track history if only in train
+                    with torch.set_grad_enabled(phase == 'train'):
+                        outputs = model(inputs)
+                        _, preds = torch.max(outputs, 1)
+                        loss = criterion(outputs, labels)
+
+                        # backward + optimize only if in training phase
+                        if phase == 'train':
+                            loss.backward()
+                            optimizer.step()
+
+                    # statistics
+                    running_loss += loss.item() * inputs.size(0)
+                    running_corrects += torch.sum(preds == labels.data)
+                if phase == 'train':
+                    scheduler.step()
+
+                epoch_loss = running_loss / dataset_sizes[phase]
+                epoch_acc = running_corrects.double() / dataset_sizes[phase]
+
+                print(f'{phase} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
+
+                # deep copy the model
+                if phase == 'val' and epoch_acc > best_acc:
+                    best_acc = epoch_acc
+                    torch.save(model.state_dict(), best_model_params_path)
+
+            print()
+
+        time_elapsed = time.time() - since
+        print(f'Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
+        print(f'Best val Acc: {best_acc:4f}')
+
+        # load best model weights
+        model.load_state_dict(torch.load(best_model_params_path))
+    return model
+
+# def train(dataloader, model, loss_fn, optimizer, device, output):
     size = len(dataloader.dataset)
 
     model.train() # set the model to training mode
@@ -81,10 +166,10 @@ def train(dataloader, model, loss_fn, optimizer, device, output):
             loss, current = loss.item(), (batch + 1) * len(X)
             print(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
             output.write(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]\n")
-    
-    
-
-def test(dataloader, model, loss_fn, device, output):
+#     
+#     
+# 
+# def test(dataloader, model, loss_fn, device, output):
     size = len(dataloader.dataset)
     num_batches = len(dataloader)
     model.eval()    # set the model in evaluation mode
@@ -106,7 +191,7 @@ def test(dataloader, model, loss_fn, device, output):
     correct /= size
     print(f"Test Error: \n Accuracy: {(100*correct):>0.8f}%, Avg loss: {test_loss:>8f} \n")
     output.write(f"Test Error: \n Accuracy: {(100*correct):>0.8f}%, Avg loss: {test_loss:>8f} \n")
-
+# 
 
 # model1, d1, v1 = train_model(resnet50(), "/Users/macbook/Downloads/RadImageNet_pytorch/ResNet50.pt", "s", "FLAIR") # 2048
 # model2, d2, v2 = train_model(resnet50(), "/Users/macbook/Downloads/RadImageNet_pytorch/ResNet50.pt", "s", "T1w") # 2048
@@ -134,16 +219,19 @@ model = model.to(device)
 
 loss_fn = nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), 0.001, momentum=0.87, nesterov=True)
-# scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=60, gamma= 0.1)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=60, gamma= 0.1)
 
 output = open(f"./trainingResults/{names[int(sys.argv[0])]}", "w")
-epochs = epochs
-for t in range(epochs):
-    print(f"Epoch {t+1}\n-------------------------------")
-    output.write(f"Epoch {t+1}\n-------------------------------\n")
-    train(trainDL, model, loss_fn, optimizer, device, output)
-    test(valDL, model, loss_fn, device, output)
-    # scheduler.step()
+
+train_model(model, loss_fn, optimizer, scheduler, 10)
+
+# epochs = epochs
+# for t in range(epochs):
+#     print(f"Epoch {t+1}\n-------------------------------")
+#     output.write(f"Epoch {t+1}\n-------------------------------\n")
+#     train(trainDL, model, loss_fn, optimizer, device, output)
+#     test(valDL, model, loss_fn, device, output)
+#     # scheduler.step()
 
 torch.save(model.state_dict(), f"./modelWeights/{names[int(sys.argv[0])]}.pt")
 print("Done!")

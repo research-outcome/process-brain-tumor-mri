@@ -35,9 +35,9 @@ class RSNADataset(Dataset):
         self.modelSize = modelSize
 
         if csv_dir != None:
-            csv_data = pd.read_csv(csv_dir)
-            labels = csv_data[csv_data.columns[1]]
-            self.patients = list(csv_data.index)
+            csv_data = pd.read_csv(csv_dir, dtype=str)
+            labels = csv_data.astype("Int64")[csv_data.columns[1]]
+            self.patients = list(csv_data["BraTS21ID"])
             self.trainingData, self.valData = self.train_val_generate(labels)
         
         else:
@@ -94,8 +94,8 @@ class RSNADataset(Dataset):
                 label = labels[patients.index(patient)]
                 for data in type.iterdir():
                     # check the size of the data using regex
-                    isSize = len(re.findall(f'(?<=-)[{self.modelSize}](?=\.npy)', data.name)) > 0
-                    if isSize:
+                    exists = len(re.findall(f"{patient}[0-9a-zA-Z]*(?=\.npy)", data.name)) > 0
+                    if exists:
                         trainDataPaths[i].append((data, label))
 
                 else:
@@ -107,9 +107,9 @@ class RSNADataset(Dataset):
                 type = types[i]
                 label = labels[patients.index(patient)]
                 for data in type.iterdir():
-                    # checking data size
-                    isSize = len(re.findall(f'(?<=-)[{self.modelSize}](?=\.npy)', data.name)) > 0
-                    if isSize:
+                    # check the size of the data using regex
+                    exists = len(re.findall(f"{patient}[0-9a-zA-Z]*(?=\.npy)", data.name)) > 0
+                    if exists:
                         valDataPaths[i].append((data, label))
                 else:
                     continue

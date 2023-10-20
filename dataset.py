@@ -14,17 +14,19 @@ from torch.utils.data import Dataset
 
 class RSNADataset(Dataset):
 
-    def __init__(self, root_dir, csv_dir=None, dataset="train", val=0, scanType: str = "FLAIR"):
+    def __init__(self, root_dir, csv_dir=None, dataset="train", val=0, scanType: str = "FLAIR", transform = None):
         self.root_dir = root_dir
         self.scanType = scanType
         self.dataset = dataset
         self.val = val
+        self.transform = transform
+        self.types = ["FLAIR", "T1w", "T1wCE", "T2w"]
 
         if csv_dir != None:
-            csv_data = pd.read_csv(csv_dir)
-            labels = csv_data[csv_data.columns[1]]
-            patients = list(csv_data.index)
-            self.trainingData, self.valData = self.train_val_generate(labels, patients)
+            csv_data = pd.read_csv(csv_dir, dtype=str)
+            labels = csv_data.astype("Int64")[csv_data.columns[1]]
+            self.patients = list(csv_data["BraTS21ID"])
+            self.trainingData, self.valData = self.train_val_generate(labels)
         
         else:
             self.testData = self.test_generate(root_dir)  
@@ -41,8 +43,9 @@ class RSNADataset(Dataset):
 
 
 
-    def train_val_generate(self, labels, patients):
-        
+    def train_val_generate(self, labels):
+        patients = self.patients
+
         liste = list()
         if self.val:
             trainX, valX, _, _ = train_test_split(patients, labels, test_size=self.val, random_state=42)
@@ -56,19 +59,21 @@ class RSNADataset(Dataset):
         trainDataPaths, valDataPaths = list(), list()
 
         for patient in trainingSet:
-            for type in patient.iterdir():
-                if type.name == self.scanType:
+            for type in self.types:
+                if type == self.scanType:
                     label = labels[patients.index(patient)]
-                    for data in type.iterdir():
+                    file = self.root_dir / type / str(label) 
+                    for data in file.iterdir():
                         trainDataPaths.append((data, label))
                 else:
                     continue
 
         for patient in valSet:
-            for type in patient.iterdir():
-                if type.name == self.scanType:
+            for type in self.types:
+                if type == self.scanType:
                     label = labels[patients.index(patient)]
-                    for data in type.iterdir():
+                    file = self.root_dir / type / str(label) 
+                    for data in file.iterdir():
                         valDataPaths.append((data, label))
                 else:
                     continue
@@ -97,25 +102,27 @@ class RSNADataset(Dataset):
             fetchedItem = self.trainingData[index]
             label = fetchedItem[1]
             fetchedData = (np.load(fetchedItem[0])).astype(np.int32)
+            if self.transform is not None:
+                fetchedData = self.transform(fetchedData)
             return (fetchedData, label)
 
         elif self.dataset == "val":
             fetchedItem = self.valData[index]
             label = fetchedItem[1]
             fetchedData = (np.load(fetchedItem[0])).astype(np.int32)
+            if self.transform is not None:
+                fetchedData = self.transform(fetchedData)
             return (fetchedData, label)
         
         else:
             patient = self.testData[index]
-            fetchedItem = self.transform(patient)
-            if self.modelSize == 's':
-                fetchedItem = cv.resize(fetchedItem, (224, 224), interpolation=cv.INTER_LINEAR)
-            elif self.modelSize == 'l':
-                fetchedItem = cv.resize(fetchedItem, (299, 299), interpolation=cv.INTER_LINEAR)
+            fetchedItem = self.preprocess(patient)
+            if self.transform is not None:
+                fetchedItem = self.transform(fetchedItem)
             return fetchedItem.astype(np.int32)
     
     
-    def transform(self, patient):
+    def preprocess(self, patient):
 
         subsampled = list()
 
