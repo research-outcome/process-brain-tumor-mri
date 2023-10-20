@@ -32,10 +32,10 @@ Args:
 This method is necessary in downloading pretrained weights of ResNet50. May prove to be useless
 in different platforms.
 '''
-def get_state_dict(self, *args, **kwargs):
-    kwargs.pop("check_hash")
-    return load_state_dict_from_url(self.url, *args, **kwargs)
-WeightsEnum.get_state_dict = get_state_dict
+# def get_state_dict(self, *args, **kwargs):
+#     kwargs.pop("check_hash")
+#     return load_state_dict_from_url(self.url, *args, **kwargs)
+# WeightsEnum.get_state_dict = get_state_dict
 
 
 
@@ -54,21 +54,23 @@ weights = EfficientNet_B0_Weights
 trainingFolder = Path("F:\\brain-tumor-target\\reorganized")
 labelsDirectory = Path.cwd() / "train_labels.csv"
 
+transformations = transforms.Compose((transforms.Resize(224), transforms.Normalize(mean=[0.485,0.456, 0.406], std=[0.229, 0.224, 0.225])))
 
-trainDataset = RSNADataset(trainingFolder, labelsDirectory, "train", 0.118)
-valDataset = RSNADataset(trainingFolder, labelsDirectory, "val", 0.118)
+
+trainDataset = RSNADataset(trainingFolder, labelsDirectory, "train", 0.118, transform=transformations)
+valDataset = RSNADataset(trainingFolder, labelsDirectory, "val", 0.118, transform=transformations)
 
 trainDL = DataLoader(trainDataset, batch_size=batchSize, shuffle=True)
 valDL = DataLoader(valDataset, batch_size=batchSize, shuffle=True)
 
-dataloaders = [trainDL, valDL]
+dataloaders = {"train": trainDL, "val": valDL}
 
 # model = ensemble.EnsembleModel(architecture, weights)
-modelf = efficientnet_b0(EfficientNet_B0_Weights)
+modelf = efficientnet_b0(EfficientNet_B0_Weights(EfficientNet_B0_Weights.IMAGENET1K_V1))
 for layer in modelf.children():
     layer.requires_grad_ = False
 
-model = nn.Sequential(list(modelf.children())[:-1], nn.LazyLinear(2))
+model = nn.Sequential(*list(modelf.children())[:-1], nn.LazyLinear(2))
 
 dataset_sizes = [trainDataset.__len__(), valDataset.__len__()]
 
@@ -104,8 +106,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
                 # Iterate over data.
                 for inputs, labels in dataloaders[phase]:
-                    inputs = inputs.to(device)
-                    labels = labels.to(device)
+                    inputs = inputs.to(device, dtype=torch.float32)
+                    labels = labels.to(device, dtype = torch.long)
 
                     # zero the parameter gradients
                     optimizer.zero_grad()
@@ -221,7 +223,7 @@ loss_fn = nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), 0.001, momentum=0.87, nesterov=True)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=60, gamma= 0.1)
 
-output = open(f"./trainingResults/{names[int(sys.argv[0])]}", "w")
+# output = open(f"./trainingResults/{names[int(sys.argv[0])]}", "w")
 
 train_model(model, loss_fn, optimizer, scheduler, 10)
 
@@ -235,7 +237,7 @@ train_model(model, loss_fn, optimizer, scheduler, 10)
 
 torch.save(model.state_dict(), f"./modelWeights/{names[int(sys.argv[0])]}.pt")
 print("Done!")
-output.close()
+# output.close()
 
 
 
