@@ -15,12 +15,11 @@ from torch.utils.data import Dataset
 
 class RSNADataset(Dataset):
 
-    def __init__(self, root_dir, csv_dir=None, dataset="train", val=0, scanType: str = "FLAIR", modelSize="s"):
+    def __init__(self, root_dir, csv_dir=None, dataset="train", val=0, scanType: str = "FLAIR"):
         self.root_dir = root_dir
         self.scanType = scanType
         self.dataset = dataset
         self.val = val
-        self.modelSize = modelSize
 
         if csv_dir != None:
             csv_data = pd.read_csv(csv_dir)
@@ -68,9 +67,7 @@ class RSNADataset(Dataset):
                 if type.name == self.scanType:
                     label = labels[patients.index(patient)]
                     for data in type.iterdir():
-                        isSize = len(re.findall(f'(?<=-)[{self.modelSize}](?=\.npy)', data.name)) > 0
-                        if isSize:
-                            trainDataPaths.append((data, label))
+                        trainDataPaths.append((data, label))
                 else:
                     continue
 
@@ -79,9 +76,7 @@ class RSNADataset(Dataset):
                 if type.name == self.scanType:
                     label = labels[patients.index(patient)]
                     for data in type.iterdir():
-                        isSize = len(re.findall(f'(?<=-)[{self.modelSize}](?=\.npy)', data.name)) > 0
-                        if isSize:
-                            valDataPaths.append((data, label))
+                        valDataPaths.append((data, label))
                 else:
                     continue
         
