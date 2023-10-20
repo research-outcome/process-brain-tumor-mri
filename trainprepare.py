@@ -6,6 +6,7 @@ import os
 import cv2 as cv
 from methods import *
 import pandas as pd
+from matplotlib import pyplot as plt
 
 
 def augmentations(nparray):
@@ -50,12 +51,26 @@ def transformationPipeline(dataList, analytics):
     return augmentedList
 
 
+def save_fig(img, path, imageName, tight_layout=True, fig_extension="png", resolution=300):
+    path.mkdir(parents=True, exist_ok=True)
+    imagePath = path / imageName
+    if tight_layout:
+        plt.tight_layout()
+    plt.imshow(img, cmap=plt.cm.bone)
+    plt.axis('off')
+    plt.savefig(imagePath, format=fig_extension, dpi=resolution)
+    plt.close()
 
-def save(parent, name, list, suffixes):
+
+def save(parent, name, list, suffixes, as_png=False):
     for i in range(len(list)):
         a1 = np.array([list[i], list[i], list[i]])
-        spath = Path(f"{parent}/{name}{suffixes[i]}")
-        np.save(spath, a1)
+        imgName =  f"{name}{suffixes[i]}"
+        spath = parent / imgName
+        if not as_png:
+            np.save(spath, a1)
+        else:
+            save_fig(a1, spath, imgName)
         
 
 
