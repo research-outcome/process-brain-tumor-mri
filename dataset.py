@@ -101,7 +101,7 @@ class RSNADataset(Dataset):
         if self.dataset == "train":
             fetchedItem = self.trainingData[index]
             label = fetchedItem[1]
-            fetchedData = (np.load(fetchedItem[0])).astype(np.int32)
+            fetchedData = torch.from_numpy((np.load(fetchedItem[0])).astype(np.float32))
             if self.transform is not None:
                 fetchedData = self.transform(fetchedData)
             return (fetchedData, label)
@@ -109,7 +109,7 @@ class RSNADataset(Dataset):
         elif self.dataset == "val":
             fetchedItem = self.valData[index]
             label = fetchedItem[1]
-            fetchedData = (np.load(fetchedItem[0])).astype(np.int32)
+            fetchedData = torch.from_numpy((np.load(fetchedItem[0])).astype(np.float32))
             if self.transform is not None:
                 fetchedData = self.transform(fetchedData)
             return (fetchedData, label)

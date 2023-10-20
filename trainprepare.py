@@ -7,6 +7,7 @@ import cv2 as cv
 from methods import *
 import pandas as pd
 from matplotlib import pyplot as plt
+from PIL import Image
 
 
 def augmentations(nparray):
@@ -66,11 +67,12 @@ def save(parent, name, list, suffixes, as_png=False):
     for i in range(len(list)):
         a1 = np.array([list[i], list[i], list[i]])
         imgName =  f"{name}{suffixes[i]}"
-        spath = parent / imgName
+        spath = parent / f"{imgName}.png"
         if not as_png:
             np.save(spath, a1)
         else:
-            save_fig(a1, spath, imgName)
+            img = Image.fromarray(a1)
+            img.save(spath, bitmap_format='png')
         
 
 
