@@ -114,8 +114,8 @@ def main():
             typeTargetFolder = processed / type
             typeTargetFolder.mkdir(parents=True, exist_ok=True)
 
-            histogramFile.write(f"{type.name}:\n")
-            print(f"{patient.name} - {type.name}: Beginning")
+            histogramFile.write(f"{type}:\n")
+            print(f"{patient.name} - {type}: Beginning")
             # retrieve the label and create directory
             index = list(patients).index(int(patient.name))
             label = labels[index]
@@ -125,12 +125,12 @@ def main():
             """
             if the patient has no slices for the corresponding scan, decide to fill with zeros or omit entirely
             """
-            if (processed / patient.name / type).exists:
-                typeArraysList = transformationPipeline(natsort.natsorted(type.iterdir()), histogramFile)
+            if (newData / patient.name / type).exists():
+                typeArraysList = transformationPipeline(natsort.natsorted((newData / patient.name / type).iterdir()), histogramFile)
             else:
-                typeArraysList = [np.zeros(240, 240) for i in range(9)]
+                typeArraysList = [np.zeros((240, 240)) for i in range(9)]
             save(labelDir, patient.name, typeArraysList, suffixes)
-            print(f"{patient.name} - {type.name}: Done")
+            print(f"{patient.name} - {type}: Done")
 
         i+=1
     

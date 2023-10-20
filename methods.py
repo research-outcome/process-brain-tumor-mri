@@ -89,7 +89,7 @@ def Crop(image, analytics=None):
     extBot = tuple(c[c[:, :, 1].argmax()][0])
     croppedarray = image[extTop[1]: extBot[1], extLeft[0]: extRight[0]]
     previousShape = croppedarray.shape
-    if not analytics:
+    if analytics is not None:
         analytics.write(f"{previousShape} -> (240, 240)\n")
     resized = cv.resize(croppedarray, (240, 240), interpolation=cv.INTER_LINEAR)
 
