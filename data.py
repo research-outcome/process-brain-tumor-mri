@@ -10,6 +10,7 @@ import sys
 import ensemble
 
 
+
 """ 
 Training and validation module for RSNA Dataset.
 Args:
@@ -56,31 +57,6 @@ valDL = DataLoader(valDataset, batch_size=batchSize, shuffle=True)
 
 model = ensemble.EnsembleModel(architecture, weights)
 
-
-# def train_model(model, weights, size):
-#     trainDataset = RSNADataset(trainingFolder, labelsDirectory, "train", 0.118, modelSize=size)
-#     valDataset = RSNADataset(trainingFolder, labelsDirectory, "val", 0.118, modelSize=size)
-# 
-# 
-#     dloader = DataLoader(trainDataset, batch_size=batchSize, shuffle=True)
-#     val = DataLoader(valDataset, batch_size=batchSize, shuffle=True)
-# 
-#     datamodel = ensemble.EnsembleModel(model, weights)
-#     model.load_state_dict(torch.load(weights), strict=False)
-# 
-#     ptLayers = nn.Sequential(*list(model.children())[:-1])
-# 
-#     layers = list(ptLayers.children())
-# 
-# 
-#     for i in range(len(layers) - 3):
-#         layers[i].requires_grad_ = False
-# 
-# 
-#     mergedModel = nn.Sequential(ptLayers, nn.Flatten(), nn.Linear(2048, 2, bias=True))
-# 
-# 
-#     return mergedModel, dloader, val
 
 '''
 train and test methods are copied directly from pytorch's getting started page.
