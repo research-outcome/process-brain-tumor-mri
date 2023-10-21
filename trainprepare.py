@@ -118,6 +118,44 @@ def main():
     i = 0
     histogramDir = Path.cwd() / "analytics" / "resizeHistogram-new.txt"
     histogramFile = open(histogramDir, "w")
+
+
+    for patient in test:
+
+        if not patient.is_dir:
+            continue
+        
+        # create the patient directory in preprocessed
+        histogramFile.write(f"{patient.name}:\n")
+
+        types = ["FLAIR", "T1w", "T1wCE", "T2w"]
+        for type in types:
+            # create the corresponding type directory
+            typeTargetFolder = processed / type
+            typeTargetFolder.mkdir(parents=True, exist_ok=True)
+
+            histogramFile.write(f"{type}:\n")
+            print(f"{patient.name} - {type}: Beginning")
+            # retrieve the label and create directory
+            index = list(patients).index(int(patient.name))
+            label = labels[index]
+            labelDir = typeTargetFolder / "test" / str(label)
+            labelDir.mkdir(parents=True, exist_ok = True)
+            # pass the directory to transformations
+            """
+            if the patient has no slices for the corresponding scan, decide to fill with zeros or omit entirely
+            """
+            if (newData / patient.name / type).exists():
+                typeArraysList = transformationPipeline(natsort.natsorted((newData / patient.name / type).iterdir()), histogramFile, test=True)
+            else:
+                print(f"{patient.name} - {type}: DNE")
+                continue
+            saveTest(labelDir, patient.name, typeArraysList)
+            print(f"{patient.name} - {type}: Done")
+
+
+
+
     # main loop
     for patient in train:
 
@@ -183,41 +221,6 @@ def main():
                 typeArraysList = [np.zeros((240, 240)) for i in range(9)]
             save(labelDir, patient.name, typeArraysList, suffixes)
             print(f"{patient.name} - {type}: Done")
-
-    for patient in test:
-
-        if not patient.is_dir:
-            continue
-        
-        # create the patient directory in preprocessed
-        histogramFile.write(f"{patient.name}:\n")
-
-        types = ["FLAIR", "T1w", "T1wCE", "T2w"]
-        for type in types:
-            # create the corresponding type directory
-            typeTargetFolder = processed / type
-            typeTargetFolder.mkdir(parents=True, exist_ok=True)
-
-            histogramFile.write(f"{type}:\n")
-            print(f"{patient.name} - {type}: Beginning")
-            # retrieve the label and create directory
-            index = list(patients).index(int(patient.name))
-            label = labels[index]
-            labelDir = typeTargetFolder / "test" / str(label)
-            labelDir.mkdir(parents=True, exist_ok = True)
-            # pass the directory to transformations
-            """
-            if the patient has no slices for the corresponding scan, decide to fill with zeros or omit entirely
-            """
-            if (newData / patient.name / type).exists():
-                typeArraysList = transformationPipeline(natsort.natsorted((newData / patient.name / type).iterdir()), histogramFile, test=True)
-            else:
-                print(f"{patient.name} - {type}: DNE")
-                continue
-            saveTest(labelDir, patient.name)
-            print(f"{patient.name} - {type}: Done")
-
-    
     
     histogramFile.close()
 
