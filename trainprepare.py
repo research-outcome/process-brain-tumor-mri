@@ -8,6 +8,7 @@ from methods import *
 import pandas as pd
 from matplotlib import pyplot as plt
 from PIL import Image
+from sklearn.model_selection import train_test_split
 
 
 def augmentations(nparray):
@@ -31,7 +32,7 @@ def augmentations(nparray):
 
 
 
-def transformationPipeline(dataList, analytics):
+def transformationPipeline(dataList, analytics, test=False):
     # first do the sampling 
     if len(dataList) == 0:
         return [np.zeros((240, 240)) for i in range(9)]
@@ -48,8 +49,11 @@ def transformationPipeline(dataList, analytics):
     merged = concatenate(newList)
 
     # now apply the augmentations
-    augmentedList = augmentations(merged)
-    return augmentedList
+    if not test:
+        augmentedList = augmentations(merged)
+        return augmentedList
+    else:
+        return merged
 
 
 def save_fig(img, path, imageName, tight_layout=True, fig_extension="png", resolution=300):
@@ -67,13 +71,21 @@ def save(parent, name, list, suffixes, as_png=False):
     for i in range(len(list)):
         a1 = np.array([list[i], list[i], list[i]])
         imgName =  f"{name}{suffixes[i]}"
-        spath = parent / f"{imgName}.png"
+        spath = parent / f"{imgName}"
         if not as_png:
             np.save(spath, a1)
         else:
             img = Image.fromarray(a1)
             img.save(spath, bitmap_format='png')
-        
+
+def saveTest(parent, name, item, as_png=False):
+    a1 = np.array([item, item, item])
+    spath = parent / f"{name}"
+    if not as_png:
+        np.save(spath, a1)
+    else:
+        img = Image.fromarray(a1)
+        img.save(spath, bitmap_format='png')
 
 
 
@@ -93,16 +105,21 @@ patients = csv["BraTS21ID"]
 labels = csv["MGMT_value"]
 
 
+patientdirs = natsort.natsorted(list(newData.iterdir()))
+
+ratio0 = 0.15
+ratio = 0.118
+tv, test = train_test_split(patientdirs, test_size=ratio0, random_state=42)
+train, val = train_test_split(tv, test_size=ratio, random_state=42)
+
+
 def main():
 
     i = 0
     histogramDir = Path.cwd() / "analytics" / "resizeHistogram-new.txt"
     histogramFile = open(histogramDir, "w")
     # main loop
-    for patient in natsort.natsorted(newData.iterdir()):
-
-        # if i==1:
-        #     break
+    for patient in train:
 
         if not patient.is_dir:
             continue
@@ -121,7 +138,7 @@ def main():
             # retrieve the label and create directory
             index = list(patients).index(int(patient.name))
             label = labels[index]
-            labelDir = typeTargetFolder / str(label)
+            labelDir = typeTargetFolder / "train" / str(label)
             labelDir.mkdir(parents=True, exist_ok = True)
             # pass the directory to transformations
             """
@@ -134,7 +151,73 @@ def main():
             save(labelDir, patient.name, typeArraysList, suffixes)
             print(f"{patient.name} - {type}: Done")
 
-        i+=1
+
+    # main loop
+    for patient in val:
+        if not patient.is_dir:
+            continue
+        
+        # create the patient directory in preprocessed
+        histogramFile.write(f"{patient.name}:\n")
+
+        types = ["FLAIR", "T1w", "T1wCE", "T2w"]
+        for type in types:
+            # create the corresponding type directory
+            typeTargetFolder = processed / type
+            typeTargetFolder.mkdir(parents=True, exist_ok=True)
+
+            histogramFile.write(f"{type}:\n")
+            print(f"{patient.name} - {type}: Beginning")
+            # retrieve the label and create directory
+            index = list(patients).index(int(patient.name))
+            label = labels[index]
+            labelDir = typeTargetFolder / "val" / str(label)
+            labelDir.mkdir(parents=True, exist_ok = True)
+            # pass the directory to transformations
+            """
+            if the patient has no slices for the corresponding scan, decide to fill with zeros or omit entirely
+            """
+            if (newData / patient.name / type).exists():
+                typeArraysList = transformationPipeline(natsort.natsorted((newData / patient.name / type).iterdir()), histogramFile)
+            else:
+                typeArraysList = [np.zeros((240, 240)) for i in range(9)]
+            save(labelDir, patient.name, typeArraysList, suffixes)
+            print(f"{patient.name} - {type}: Done")
+
+    for patient in test:
+
+        if not patient.is_dir:
+            continue
+        
+        # create the patient directory in preprocessed
+        histogramFile.write(f"{patient.name}:\n")
+
+        types = ["FLAIR", "T1w", "T1wCE", "T2w"]
+        for type in types:
+            # create the corresponding type directory
+            typeTargetFolder = processed / type
+            typeTargetFolder.mkdir(parents=True, exist_ok=True)
+
+            histogramFile.write(f"{type}:\n")
+            print(f"{patient.name} - {type}: Beginning")
+            # retrieve the label and create directory
+            index = list(patients).index(int(patient.name))
+            label = labels[index]
+            labelDir = typeTargetFolder / "test" / str(label)
+            labelDir.mkdir(parents=True, exist_ok = True)
+            # pass the directory to transformations
+            """
+            if the patient has no slices for the corresponding scan, decide to fill with zeros or omit entirely
+            """
+            if (newData / patient.name / type).exists():
+                typeArraysList = transformationPipeline(natsort.natsorted((newData / patient.name / type).iterdir()), histogramFile, test=True)
+            else:
+                print(f"{patient.name} - {type}: DNE")
+                continue
+            saveTest(labelDir, patient.name)
+            print(f"{patient.name} - {type}: Done")
+
+    
     
     histogramFile.close()
 

@@ -39,6 +39,7 @@ in different platforms.
 
 
 
+
 batchSize = 16
 epochs = 60
 
@@ -70,7 +71,7 @@ modelf = efficientnet_b0(EfficientNet_B0_Weights(EfficientNet_B0_Weights.IMAGENE
 for layer in modelf.children():
     layer.requires_grad_ = False
 
-model = nn.Sequential(*list(modelf.children())[:-1], nn.LazyLinear(2))
+model = nn.Sequential(*list(modelf.children())[:-1], nn.LazyLinear(2, bias=True))
 
 dataset_sizes = [trainDataset.__len__(), valDataset.__len__()]
 
@@ -107,7 +108,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 # Iterate over data.
                 for inputs, labels in dataloaders[phase]:
                     inputs = inputs.to(device, dtype=torch.float32)
-                    labels = labels.to(device, dtype = torch.long)
+                    labels = labels.to(device, dtype = torch.float32)
 
                     # zero the parameter gradients
                     optimizer.zero_grad()
@@ -117,6 +118,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                     with torch.set_grad_enabled(phase == 'train'):
                         outputs = model(inputs)
                         _, preds = torch.max(outputs, 1)
+                        labels = labels.squeeze_()
                         loss = criterion(outputs, labels)
 
                         # backward + optimize only if in training phase
@@ -235,7 +237,7 @@ train_model(model, loss_fn, optimizer, scheduler, 10)
 #     test(valDL, model, loss_fn, device, output)
 #     # scheduler.step()
 
-torch.save(model.state_dict(), f"./modelWeights/{names[int(sys.argv[0])]}.pt")
+torch.save(model.state_dict(), f".\\modelWeights\\{names[int(sys.argv[0])]}.pt")
 print("Done!")
 # output.close()
 
