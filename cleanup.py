@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# coding: utf-8
+
 ''''
 The file for cleaning redundant dicom slices from original dataset.
 
@@ -19,10 +22,11 @@ import numpy as np
 
 
 
-# The addresses of the directories must be given as program arguments.
-originalData = Path(sys.argv[0])
+#originalData = Path(sys.argv[0])
+originalData = Path('/blue/fl-poly/oguzhan/radimagenet/data/train')
 
-newData = Path(sys.argv[1])
+#newData = Path(sys.argv[1])
+newData = Path('/blue/fl-poly/oguzhan/radimagenet/data/cleaned')
 
 for patient in originalData.iterdir():
     if not patient.is_dir:

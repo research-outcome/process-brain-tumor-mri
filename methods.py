@@ -3,10 +3,24 @@
 '''
 
 from pathlib import Path
-from natsort import natsorted
+#from natsort import natsorted
 import torch
 import cv2 as cv
 import numpy as np
+
+import re
+
+# Adapted from here: https://stackoverflow.com/questions/4836710/is-there-a-built-in-function-for-string-natural-sort
+def natural_sort_original(l): 
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+    return sorted(l, key=alphanum_key)
+
+# the following one accepts the path.iterdir()
+def natsorted(l): 
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', str(key))]  # convert Path to string here
+    return sorted(l, key=alphanum_key)
 
 
 '''
