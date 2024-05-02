@@ -1,9 +1,0 @@
-pics/
-data/
-./rsna-miccai-brain-tumor-radiogenomic-classification/
-rsna-miccai-brain-tumor-radiogenomic-classification/test/00001/FLAIR/Image-1.dcm
-brain-tumor-target/
-
-analytics/resizeHistogram-new.txt
-image-generation/
-histogram-generation/
